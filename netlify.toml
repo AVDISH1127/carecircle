@@ -2,6 +2,9 @@
   publish = "public"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
 # Static files (styles.css) are served directly; everything else goes to the
 # Express app wrapped as a serverless function.
 [[redirects]]

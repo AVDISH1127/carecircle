@@ -3,6 +3,12 @@ import serverless from 'serverless-http';
 import { createAppWithStore } from '../../src/app.js';
 import { BlobStore } from '../../src/db.js';
 
-const { app } = await createAppWithStore({ store: new BlobStore() });
+let serverlessHandler = null;
 
-export const handler = serverless(app);
+export const handler = async (event, context) => {
+  if (!serverlessHandler) {
+    const { app } = await createAppWithStore({ store: new BlobStore() });
+    serverlessHandler = serverless(app);
+  }
+  return serverlessHandler(event, context);
+};
