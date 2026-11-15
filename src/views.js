@@ -8,6 +8,7 @@ export function page({ title, body, session, profile, elderMode }) {
         <a href="/appointments">Appointments</a>
         <a href="/activity">Activity</a>
         <a href="/settings">Settings</a>
+        <a href="/toggle-elder-mode" aria-pressed="${elderMode ? 'true' : 'false'}">${elderMode ? 'Normal text' : 'Larger text'}</a>
         <form method="post" action="/logout" class="inline"><button type="submit" class="linklike">Sign out</button></form>
       </nav>`
     : '';

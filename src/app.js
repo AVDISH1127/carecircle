@@ -66,6 +66,18 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
     next();
   }
 
+  // Elder mode: extra-large text, toggled per session (stored in a cookie).
+  app.use((req, res, next) => {
+    req.elderMode = /(?:^|;\s*)cc_elder=1/.test(req.headers.cookie ?? '');
+    res.page = (opts) => res.type('html').send(views.page({ elderMode: req.elderMode, ...opts }));
+    next();
+  });
+
+  app.get('/toggle-elder-mode', (req, res) => {
+    res.set('Set-Cookie', req.elderMode ? 'cc_elder=; Path=/; Max-Age=0' : 'cc_elder=1; Path=/; SameSite=Lax; Max-Age=31536000');
+    res.redirect(req.get('Referer')?.startsWith('/') ? req.get('Referer') : '/dashboard');
+  });
+
   const localDate = () => todayLocal(tzOffsetMinutes);
 
   // ---------- Public ----------
@@ -73,16 +85,16 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   app.get('/', (req, res) => {
     const ctx = sessionFromCookie(store, req.headers.cookie);
     if (ctx) return res.redirect('/dashboard');
-    res.type('html').send(views.page({ title: 'Welcome', body: views.landingPage() }));
+    res.page({ title: 'Welcome', body: views.landingPage() });
   });
 
   app.get('/create', (req, res) => {
-    res.type('html').send(views.page({ title: 'Start a care circle', body: views.createForm() }));
+    res.page({ title: 'Start a care circle', body: views.createForm() });
   });
 
   app.post('/create', (req, res) => {
     if (!rateLimitOk(req.ip)) {
-      return res.status(429).type('html').send(views.page({ title: 'Slow down', body: views.createForm({ error: 'Too many attempts. Wait a few minutes and try again.' }) }));
+      return res.status(429).page({ title: 'Slow down', body: views.createForm({ error: 'Too many attempts. Wait a few minutes and try again.' }) });
     }
     const { elderName, yourName, role, passcode, notifyEmail } = req.body ?? {};
     const bad =
@@ -90,37 +102,35 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
       (passcode && !/^\d{4,8}$/.test(passcode)) ||
       (notifyEmail && !isValidEmail(notifyEmail));
     if (bad) {
-      return res.status(400).type('html').send(views.page({ title: 'Start a care circle', body: views.createForm({ error: 'Check the form: names are required, role must be chosen, passcode must be 4-8 digits, email must be valid.' }) }));
+      return res.status(400).page({ title: 'Start a care circle', body: views.createForm({ error: 'Check the form: names are required, role must be chosen, passcode must be 4-8 digits, email must be valid.' }) });
     }
     const { profile, passcode: code } = createProfile(store, { elderName, yourName, role, notifyEmail, passcode });
     logActivity(store, profile.id, yourName.trim(), role, 'started this care circle');
     const token = createSession(store, profile.id, yourName.trim(), role);
     res.set('Set-Cookie', sessionCookie(token));
-    res.type('html').send(
-      views.page({
+    res.page({
         title: 'Circle created',
         body: views.passcodeReveal({ profile, passcode: code, inviteCode: profile.inviteCode }),
         session: { memberName: yourName.trim(), role },
         profile,
-      })
-    );
+      });
   });
 
   app.get('/join', (req, res) => {
-    res.type('html').send(views.page({ title: 'Join a care circle', body: views.joinForm() }));
+    res.page({ title: 'Join a care circle', body: views.joinForm() });
   });
 
   app.post('/join', (req, res) => {
     if (!rateLimitOk(req.ip)) {
-      return res.status(429).type('html').send(views.page({ title: 'Slow down', body: views.joinForm({ error: 'Too many attempts. Wait a few minutes and try again.' }) }));
+      return res.status(429).page({ title: 'Slow down', body: views.joinForm({ error: 'Too many attempts. Wait a few minutes and try again.' }) });
     }
     const { inviteCode, passcode, yourName, role } = req.body ?? {};
     if (!inviteCode?.trim() || !passcode?.trim() || !yourName?.trim() || !ROLES.has(role)) {
-      return res.status(400).type('html').send(views.page({ title: 'Join a care circle', body: views.joinForm({ error: 'All fields are required.' }) }));
+      return res.status(400).page({ title: 'Join a care circle', body: views.joinForm({ error: 'All fields are required.' }) });
     }
     const { profile, error } = joinProfile(store, { inviteCode, passcode, yourName, role });
     if (error) {
-      return res.status(403).type('html').send(views.page({ title: 'Join a care circle', body: views.joinForm({ error }) }));
+      return res.status(403).page({ title: 'Join a care circle', body: views.joinForm({ error }) });
     }
     logActivity(store, profile.id, yourName.trim(), role, 'joined the circle');
     const token = createSession(store, profile.id, yourName.trim(), role);
@@ -139,8 +149,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
 
   app.get('/dashboard', auth, (req, res) => {
     const date = localDate();
-    res.type('html').send(
-      views.page({
+    res.page({
         title: 'Today',
         body: views.dashboardPage({
           profile: req.profile,
@@ -153,8 +162,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
         }),
         session: req.session,
         profile: req.profile,
-      })
-    );
+      });
   });
 
   app.post('/doses/mark', auth, (req, res) => {
@@ -174,14 +182,12 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   // ---------- Medications ----------
 
   app.get('/medications', auth, (req, res) => {
-    res.type('html').send(
-      views.page({
+    res.page({
         title: 'Medications',
         body: views.medicationsPage({ medications: medicationsFor(store, req.profile.id) }),
         session: req.session,
         profile: req.profile,
-      })
-    );
+      });
   });
 
   function parseTimes(raw) {
@@ -193,14 +199,14 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   }
 
   app.get('/medications/new', auth, (req, res) => {
-    res.type('html').send(views.page({ title: 'Add medication', body: views.medicationForm({}), session: req.session, profile: req.profile }));
+    res.page({ title: 'Add medication', body: views.medicationForm({}), session: req.session, profile: req.profile });
   });
 
   app.post('/medications/new', auth, (req, res) => {
     const { name, dosage, instructions } = req.body ?? {};
     const times = parseTimes(req.body?.times);
     if (!name?.trim() || !dosage?.trim() || !times) {
-      return res.status(400).type('html').send(views.page({ title: 'Add medication', body: views.medicationForm({ error: 'Name, dosage and at least one valid time (HH:MM, one per line) are required.' }), session: req.session, profile: req.profile }));
+      return res.status(400).page({ title: 'Add medication', body: views.medicationForm({ error: 'Name, dosage and at least one valid time (HH:MM, one per line) are required.' }), session: req.session, profile: req.profile });
     }
     store.data.medications.push({
       id: store.id('med'),
@@ -221,7 +227,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   app.get('/medications/:id/edit', auth, (req, res) => {
     const med = store.data.medications.find((m) => m.id === req.params.id && m.profileId === req.profile.id && m.active);
     if (!med) return res.redirect('/medications');
-    res.type('html').send(views.page({ title: 'Edit medication', body: views.medicationForm({ med }), session: req.session, profile: req.profile }));
+    res.page({ title: 'Edit medication', body: views.medicationForm({ med }), session: req.session, profile: req.profile });
   });
 
   app.post('/medications/:id/edit', auth, (req, res) => {
@@ -230,7 +236,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
     const { name, dosage, instructions } = req.body ?? {};
     const times = parseTimes(req.body?.times);
     if (!name?.trim() || !dosage?.trim() || !times) {
-      return res.status(400).type('html').send(views.page({ title: 'Edit medication', body: views.medicationForm({ med, error: 'Name, dosage and valid times are required.' }), session: req.session, profile: req.profile }));
+      return res.status(400).page({ title: 'Edit medication', body: views.medicationForm({ med, error: 'Name, dosage and valid times are required.' }), session: req.session, profile: req.profile });
     }
     Object.assign(med, { name: name.trim(), dosage: dosage.trim(), instructions: (instructions ?? '').trim(), times, updatedAt: new Date().toISOString() });
     store.save();
@@ -254,17 +260,17 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
     const appts = store.data.appointments
       .filter((a) => a.profileId === req.profile.id)
       .sort((a, b) => a.datetime.localeCompare(b.datetime));
-    res.type('html').send(views.page({ title: 'Appointments', body: views.appointmentsPage({ appointments: appts }), session: req.session, profile: req.profile }));
+    res.page({ title: 'Appointments', body: views.appointmentsPage({ appointments: appts }), session: req.session, profile: req.profile });
   });
 
   app.get('/appointments/new', auth, (req, res) => {
-    res.type('html').send(views.page({ title: 'Add appointment', body: views.appointmentForm({}), session: req.session, profile: req.profile }));
+    res.page({ title: 'Add appointment', body: views.appointmentForm({}), session: req.session, profile: req.profile });
   });
 
   app.post('/appointments/new', auth, (req, res) => {
     const { doctor, specialty, datetime, location, notes } = req.body ?? {};
     if (!doctor?.trim() || !datetime || Number.isNaN(Date.parse(datetime))) {
-      return res.status(400).type('html').send(views.page({ title: 'Add appointment', body: views.appointmentForm({ error: 'A doctor/clinic name and a valid date & time are required.' }), session: req.session, profile: req.profile }));
+      return res.status(400).page({ title: 'Add appointment', body: views.appointmentForm({ error: 'A doctor/clinic name and a valid date & time are required.' }), session: req.session, profile: req.profile });
     }
     store.data.appointments.push({
       id: store.id('apt'),
@@ -296,13 +302,12 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
 
   app.get('/activity', auth, (req, res) => {
     const items = store.data.activity.filter((a) => a.profileId === req.profile.id).slice(0, 100);
-    res.type('html').send(views.page({ title: 'Activity', body: views.activityPage({ items }), session: req.session, profile: req.profile }));
+    res.page({ title: 'Activity', body: views.activityPage({ items }), session: req.session, profile: req.profile });
   });
 
   app.get('/settings', auth, (req, res) => {
     const reminders = store.data.reminders.filter((r) => r.profileId === req.profile.id);
-    res.type('html').send(
-      views.page({
+    res.page({
         title: 'Settings',
         body: views.settingsPage({
           profile: req.profile,
@@ -312,8 +317,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
         }),
         session: req.session,
         profile: req.profile,
-      })
-    );
+      });
   });
 
   app.post('/settings/emails', auth, (req, res) => {
@@ -334,7 +338,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   app.get('/healthz', (req, res) => res.json({ ok: true, service: 'carecircle' }));
 
   app.use((req, res) => {
-    res.status(404).type('html').send(views.page({ title: 'Not found', body: '<h1>Page not found</h1><p><a href="/">Back to CareCircle</a></p>' }));
+    res.status(404).page({ title: 'Not found', body: '<h1>Page not found</h1><p><a href="/">Back to CareCircle</a></p>' });
   });
 
   return app;
