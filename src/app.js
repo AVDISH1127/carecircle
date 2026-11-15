@@ -23,7 +23,12 @@ import { todayLocal, isValidTime, isValidEmail } from './util.js';
 import { gmailConfigured } from './gmail.js';
 import { runReminderSweep } from './reminders.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const appDir =
+  typeof __dirname !== 'undefined'
+    ? __dirname
+    : typeof import.meta?.url === 'string'
+      ? path.dirname(fileURLToPath(import.meta.url))
+      : process.cwd();
 const ROLES = new Set(['elder', 'family', 'caretaker']);
 const DOSE_STATUSES = new Set(['taken', 'missed', 'skipped']);
 
@@ -45,7 +50,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
     next();
   });
 
-  app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', index: false }));
+  app.use(express.static(path.join(appDir, '..', 'public'), { maxAge: '1h', index: false }));
 
   // Lazy reminder sweep: keeps reminders flowing on serverless deploys where
   // no long-lived interval can run. On the standalone server the interval
@@ -361,7 +366,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
 }
 
 export async function createAppWithStore(options = {}) {
-  const store = options.store ?? createStore(options.dataFile ?? path.join(__dirname, '..', 'data', 'carecircle.json'));
+  const store = options.store ?? createStore(options.dataFile ?? path.join(appDir, '..', 'data', 'carecircle.json'));
   await store.load();
   return { app: createApp({ ...options, store }), store };
 }
