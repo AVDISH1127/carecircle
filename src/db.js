@@ -86,10 +86,16 @@ export class BlobStore {
   }
 
   async load() {
-    const { getStore } = await import('@netlify/blobs');
-    this._blobs = getStore(this.storeName);
-    const parsed = await this._blobs.get(this.key, { type: 'json' });
-    this.data = { ...structuredClone(EMPTY), ...(parsed ?? {}) };
+    try {
+      const { getStore } = await import('@netlify/blobs');
+      this._blobs = getStore(this.storeName);
+      const parsed = await this._blobs.get(this.key, { type: 'json' });
+      this.data = { ...structuredClone(EMPTY), ...(parsed ?? {}) };
+    } catch (err) {
+      console.warn('[BlobStore] Netlify Blobs not available, falling back to memory store:', err.message);
+      this._blobs = null;
+      this.data = structuredClone(EMPTY);
+    }
   }
 
   save() {
@@ -101,7 +107,12 @@ export class BlobStore {
   }
 
   async flush() {
-    await this._blobs.setJSON(this.key, this.data);
+    if (!this._blobs) return;
+    try {
+      await this._blobs.setJSON(this.key, this.data);
+    } catch (err) {
+      console.warn('[BlobStore] flush failed:', err.message);
+    }
   }
 
   async close() {
