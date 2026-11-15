@@ -48,6 +48,19 @@ Environment variables:
 
 Until configured, reminders appear in **Settings - Recent reminders** and in server logs.
 
+## Deploy to Netlify
+
+The same Express app also runs as a Netlify Function (`netlify/functions/app.mjs`), with data in **Netlify Blobs** and the reminder sweep as a **scheduled function** (plus a lazy per-request sweep as fallback). Static assets serve from `public/`.
+
+```bash
+npm install -g netlify-cli
+netlify login
+netlify sites:create --name carecircle   # or deploy to an existing site
+netlify deploy --dir . --prod
+```
+
+No code changes needed: `netlify.toml` routes everything through the function.
+
 ## Deploy to Cloud Run
 
 ```bash

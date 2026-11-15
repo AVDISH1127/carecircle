@@ -9,11 +9,12 @@ const EMPTY = {
   profiles: [],
   medications: [],
   appointments: [],
-  doseStatus: {}, // key: `${medicationId}:${date}:${time}` -> dose record
+  doseStatus: {}, // key: `${medicationId}|${date}|${time}` -> dose record
   activity: [],
   reminders: [],
   reminderSent: {}, // dedup key -> iso timestamp
   sessions: [],
+  meta: {}, // e.g. lastReminderSweep timestamp
 };
 
 export class Store {
@@ -69,4 +70,54 @@ export class Store {
 
 export function createStore(filePath) {
   return new Store(filePath);
+}
+
+// Netlify Blobs-backed store: same interface, durable on serverless deploys
+// where the filesystem is ephemeral. Used automatically when running on
+// Netlify (NETLIFY env var); the file store covers local dev and Cloud Run.
+export class BlobStore {
+  constructor(storeName = 'carecircle') {
+    this.storeName = storeName;
+    this.key = 'carecircle-data';
+    this.data = structuredClone(EMPTY);
+    this._writeTimer = null;
+    this._writing = Promise.resolve();
+    this._blobs = null;
+  }
+
+  async load() {
+    const { getStore } = await import('@netlify/blobs');
+    this._blobs = getStore(this.storeName);
+    const parsed = await this._blobs.get(this.key, { type: 'json' });
+    this.data = { ...structuredClone(EMPTY), ...(parsed ?? {}) };
+  }
+
+  save() {
+    if (this._writeTimer) return;
+    this._writeTimer = setTimeout(() => {
+      this._writeTimer = null;
+      this._writing = this._writing.then(() => this.flush());
+    }, 25);
+  }
+
+  async flush() {
+    await this._blobs.setJSON(this.key, this.data);
+  }
+
+  async close() {
+    if (this._writeTimer) {
+      clearTimeout(this._writeTimer);
+      this._writeTimer = null;
+    }
+    await this._writing;
+    await this.flush();
+  }
+
+  id(prefix) {
+    return `${prefix}_${crypto.randomBytes(9).toString('base64url')}`;
+  }
+}
+
+export function isNetlify() {
+  return Boolean(process.env.NETLIFY || process.env.NETLIFY_BLOBS_CONTEXT || process.env.AWS_LAMBDA_FUNCTION_NAME);
 }

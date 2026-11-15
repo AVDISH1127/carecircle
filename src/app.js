@@ -21,6 +21,7 @@ import {
 import * as views from './views.js';
 import { todayLocal, isValidTime, isValidEmail } from './util.js';
 import { gmailConfigured } from './gmail.js';
+import { runReminderSweep } from './reminders.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROLES = new Set(['elder', 'family', 'caretaker']);
@@ -45,6 +46,21 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   });
 
   app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '1h', index: false }));
+
+  // Lazy reminder sweep: keeps reminders flowing on serverless deploys where
+  // no long-lived interval can run. On the standalone server the interval
+  // loop in server.js does the same job; sweeps are deduped either way.
+  app.use((req, res, next) => {
+    const last = Date.parse(store.data.meta?.lastReminderSweep ?? '') || 0;
+    if (Date.now() - last > 55_000) {
+      store.data.meta.lastReminderSweep = new Date().toISOString();
+      store.save();
+      runReminderSweep(store, tzOffsetMinutes).catch((err) =>
+        console.error('[reminder:lazy sweep failed]', err)
+      );
+    }
+    next();
+  });
 
   function sessionCookie(token) {
     const parts = [

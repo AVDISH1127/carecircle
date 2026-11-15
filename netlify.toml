@@ -1,0 +1,10 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+# Static files (styles.css) are served directly; everything else goes to the
+# Express app wrapped as a serverless function.
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/app"
+  status = 200
