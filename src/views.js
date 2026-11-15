@@ -1,4 +1,5 @@
 import { escapeHtml as esc, formatTime } from './util.js';
+import { CSS } from './styles.js';
 
 export function page({ title, body, session, profile, elderMode }) {
   const nav = session
@@ -19,6 +20,7 @@ export function page({ title, body, session, profile, elderMode }) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
 <title>${esc(title)} - CareCircle</title>
+<style>${CSS}</style>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>

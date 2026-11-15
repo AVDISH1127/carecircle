@@ -19,6 +19,7 @@ import {
   upcomingAppointments,
 } from './care.js';
 import * as views from './views.js';
+import { CSS } from './styles.js';
 import { todayLocal, isValidTime, isValidEmail } from './util.js';
 import { gmailConfigured } from './gmail.js';
 import { runReminderSweep } from './reminders.js';
@@ -48,6 +49,11 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     });
     next();
+  });
+
+  // Serve styles directly from memory so it can never 404 on serverless
+  app.get('/styles.css', (req, res) => {
+    res.type('text/css').set('Cache-Control', 'public, max-age=3600').send(CSS);
   });
 
   app.use(express.static(path.join(appDir, '..', 'public'), { maxAge: '1h', index: false }));
