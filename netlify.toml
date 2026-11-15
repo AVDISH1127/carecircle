@@ -5,10 +5,9 @@
 [functions]
   node_bundler = "esbuild"
 
-# Static files (styles.css) are served directly; everything else goes to the
-# Express app wrapped as a serverless function.
+# Static files (styles.css) are served directly by Netlify CDN;
+# non-static routes go to the Express app wrapped as a serverless function.
 [[redirects]]
   from = "/*"
   to = "/.netlify/functions/app"
   status = 200
-  force = true

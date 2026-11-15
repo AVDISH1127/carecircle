@@ -42,7 +42,7 @@ export function createApp({ store, tzOffsetMinutes = Number(process.env.TZ_OFFSE
   // Security headers (Cloud Run terminates TLS; cookies are Secure behind it).
   app.use((req, res, next) => {
     res.set({
-      'Content-Security-Policy': "default-src 'self'; style-src 'self'; img-src 'self' data:",
+      'Content-Security-Policy': "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:",
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'Referrer-Policy': 'same-origin',
